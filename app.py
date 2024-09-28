@@ -1,5 +1,4 @@
 import os
-#from dotenv import load_dotenv
 import streamlit as st
 from PIL import Image
 import PyPDF2
@@ -12,54 +11,62 @@ from langchain.llms import OpenAI
 from langchain.callbacks import get_openai_callback
 import platform
 
+# Set page configuration
+st.set_page_config(page_title='Generación Aumentada por Recuperación (RAG)', layout='wide')
 
-#import pickle5 as pickle
-#from pathlib import Path
-
+# Title and Image
 st.title('Generación Aumentada por Recuperación (RAG) 💬')
 image = Image.open('Chat_pdf.png')
-st.write("Versión de Python:", platform.python_version())
 st.image(image, width=350)
-with st.sidebar:
-   st.subheader("Este Agente, te ayudará a realizar algo de análisis sobre el PDF cargado")
-ke = st.text_input('Ingresa tu Clave')
-#os.environ['OPENAI_API_KEY'] = st.secrets['OPENAI_API_KEY']
-os.environ['OPENAI_API_KEY'] = ke
 
-pdfFileObj = open('example.pdf', 'rb')
- 
-# creating a pdf reader object
-pdfReader = PyPDF2.PdfReader(pdfFileObj)
+# Display Python version
+st.write("Versión de Python:", platform.python_version())
 
+# Sidebar for input key
+st.sidebar.header("Bienvenido!")
+st.sidebar.subheader("Este Agente te ayudará a realizar análisis sobre el PDF cargado.")
+ke = st.sidebar.text_input('Ingresa tu Clave', type='password')  # Use password input for security
 
-    # upload file
-pdf = st.file_uploader("Carga el archivo PDF", type="pdf")
+# Set OpenAI API key
+if ke:
+    os.environ['OPENAI_API_KEY'] = ke
 
-   # extract the text
+# File uploader for PDF
+st.subheader("Carga tu archivo PDF para análisis")
+pdf = st.file_uploader("Selecciona un archivo PDF", type="pdf")
+
+# Process PDF and generate response
 if pdf is not None:
-      from langchain.text_splitter import CharacterTextSplitter
-      pdf_reader = PdfReader(pdf)
-      text = ""
-      for page in pdf_reader.pages:
-         text += page.extract_text()
+    # Read and extract text from the PDF
+    pdf_reader = PdfReader(pdf)
+    text = ""
+    for page in pdf_reader.pages:
+        text += page.extract_text() or ''  # Avoid errors if text extraction fails
 
-   # split into chunks
-      text_splitter = CharacterTextSplitter(separator="\n",chunk_size=500,chunk_overlap=20,length_function=len)
-      chunks = text_splitter.split_text(text)
+    # Split text into chunks for processing
+    text_splitter = CharacterTextSplitter(separator="\n", chunk_size=500, chunk_overlap=20, length_function=len)
+    chunks = text_splitter.split_text(text)
 
-# create embeddings
-      embeddings = OpenAIEmbeddings()
-      knowledge_base = FAISS.from_texts(chunks, embeddings)
+    # Create embeddings from text chunks
+    embeddings = OpenAIEmbeddings()
+    knowledge_base = FAISS.from_texts(chunks, embeddings)
 
-# show user input
-      st.subheader("Escribe que quieres saber sobre el documento")
-      user_question = st.text_area(" ")
-      if user_question:
+    # User input for question
+    st.subheader("¿Qué quieres saber sobre el documento?")
+    user_question = st.text_area("Escribe tu pregunta aquí:")
+
+    # Generate response based on the user question
+    if user_question:
         docs = knowledge_base.similarity_search(user_question)
 
         llm = OpenAI(model_name="gpt-4o-mini")
         chain = load_qa_chain(llm, chain_type="stuff")
         with get_openai_callback() as cb:
-          response = chain.run(input_documents=docs, question=user_question)
-          print(cb)
-        st.write(response)
+            response = chain.run(input_documents=docs, question=user_question)
+            print(cb)
+        
+        # Display the response
+        st.write("### Respuesta:")
+        st.success(response)  # Use success message style for better visibility
+else:
+    st.warning("Por favor, carga un archivo PDF para empezar el análisis.")
